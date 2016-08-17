@@ -1,15 +1,14 @@
 //Lets require/import the HTTP module
 var http = require('http');
 var dispatcher = require('httpdispatcher');
-var LifxClient = require('node-lifx').Client;
-var client = new LifxClient();
+var fs = require('fs');
+var edimax = require('edimax-smartplug');
 
-client.init();
-
-//Lets define a port we want to listen to
 const PORT=1337; 
 
-//Lets use our dispatcher
+var conf_file = fs.readFileSync('./configuration.json');
+var conf = JSON.parse(conf_file);
+
 function handleRequest(request, response){
     try {
         //log the request on console
@@ -21,28 +20,40 @@ function handleRequest(request, response){
     }
 }
 
-//For all your static (js/css/images/etc.) set the directory name (relative path).
+function setEdimaxesPowerState (onoff, edimaxes) {
+    if ( typeof edimaxes == 'undefined' ) {
+        edimaxes = conf.edimaxes;
+    }
+
+    for (var i=0; i<edimaxes.length; i++) {
+        edimax.setSwitchState(onoff, edimaxes[i]).catch(function(e) {console.log(e)});
+    }
+}
+
 dispatcher.setStatic('resources');
 
 //A sample GET request    
-dispatcher.onGet("/page1", function(req, res) {
-    res.writeHead(200, {'Content-Type': 'text/plain'});
-    res.end('Page One');
-});    
+//dispatcher.onGet("/page1", function(req, res) {
+//    res.writeHead(200, {'Content-Type': 'text/plain'});
+//    res.end('Page One');
+//});    
 
 //A sample POST request
-dispatcher.onPost("/post1", function(req, res) {
+dispatcher.onPost("/programs", function(req, res) {
     res.writeHead(200, {'Content-Type': 'text/plain'});
-    console.log(req.body);
     sentence = JSON.parse(req.body);
     console.log(sentence);
-    if (sentence.type == "immediate action") {
-        if (sentence.action.verb == "turn on") {
-            var lotuslamp = client.light("Lotus Lamp");
-            lotuslamp.on();
-        } else if (sentence.action.verb == "turn off") {
-            var lotuslamp = client.light("Lotus Lamp");
-            lotuslamp.off();
+    if (sentence.type == "immediate_action") {
+        var lights = [];
+        for (i in conf.edimaxes) {
+            if (i == 2 || i == 4 || i == 6) {
+                lights.push(conf.edimaxes[i]);
+            }
+        }
+        if (sentence.verb == "turn on") {
+            setEdimaxesPowerState(true, lights);
+        } else if (sentence.verb == "turn off") {
+            setEdimaxesPowerState(false, lights);
         }
     }
     res.end('Got Post Data');
